@@ -1,0 +1,3 @@
+repositories:
+  - repo/test/app1
+  - repo/test/app2
