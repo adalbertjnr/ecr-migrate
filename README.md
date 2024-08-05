@@ -18,5 +18,5 @@ repositories:
 **command:**
 
 ```
-ecr-migrate --from_region="region" --to_region="region" --from="profile" --to"profile" --config_file"config.yaml"
+ecr-migrate --from_region="region" --to_region="region" --from="profile" --to="profile" --config_file"config.yaml"
 ```
