@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -71,7 +70,7 @@ func TestMigrate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			to := fmt.Sprintf("%s:%s", ic.repositoryURI, ic.generateTags[i])
+			to := generateTargetImageName(ic.repositoryURI, ic.generateTags[i])
 			if err := docker.rename(pullImage, to); err != nil {
 				t.Fatal(err)
 			}

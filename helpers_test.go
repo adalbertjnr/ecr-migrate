@@ -123,3 +123,7 @@ func generateConfigs(repositories []string, uriImages map[string]string) []ecrIm
 
 	return ecrImageConfigs
 }
+
+func generateTargetImageName(uri, tag string) string {
+	return fmt.Sprintf("%s:%s", uri, tag)
+}
