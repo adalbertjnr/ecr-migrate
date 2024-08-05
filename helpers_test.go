@@ -56,6 +56,30 @@ func createTempYamlList() (string, []string, error) {
 	return file.Name(), repo.Repositories, nil
 }
 
+func ecrClients(ecrConfig ecrConfigs) (*ResoureceConfig, *ResoureceConfig) {
+	awsFrom := mustInitConfig(
+		withRegion(ecrConfig.fromRegion),
+		withProfile(ecrConfig.fromProfile),
+	)
+
+	svcFrom := awsFrom.stablishClientWith(
+		ecrService(awsFrom.cfg),
+		stsService(awsFrom.cfg),
+	)
+
+	awsTo := mustInitConfig(
+		withRegion(ecrConfig.toRegion),
+		withProfile(ecrConfig.toProfile),
+	)
+
+	svcTo := awsTo.stablishClientWith(
+		ecrService(awsTo.cfg),
+		stsService(awsTo.cfg),
+	)
+
+	return svcFrom, svcTo
+}
+
 func delete(e *ecr.Client, repositoryNames []string) error {
 	for _, repositoryName := range repositoryNames {
 		_, err := e.DeleteRepository(context.Background(), &ecr.DeleteRepositoryInput{
@@ -83,4 +107,19 @@ func createImageURI(s *sts.Client, region string, repoList []string) map[string]
 		m[repo] = uri
 	}
 	return m
+}
+
+func generateConfigs(repositories []string, uriImages map[string]string) []ecrImageConfig {
+	ecrImageConfigs := make([]ecrImageConfig, len(repositories))
+	for _, repo := range repositories {
+		uri := uriImages[repo]
+		ecrImageConfigs = append(ecrImageConfigs, ecrImageConfig{
+			repository:    repo,
+			repositoryURI: uri,
+			pullImage:     []string{"alpine:latest", "alpine:latest"},
+			generateTags:  []string{"1.0", "1.1"},
+		})
+	}
+
+	return ecrImageConfigs
 }

@@ -23,7 +23,7 @@ type Docker struct {
 	cli        *client.Client
 	args       *Args
 	data       metadataList
-	pushch     chan renamedImage
+	pushch     chan uploadImage
 	metadatach chan repositoryMetadata
 	done       chan struct{}
 	donepushch chan struct{}
@@ -86,7 +86,6 @@ func (d *Docker) migrate() *Docker {
 }
 
 func (d *Docker) pushers(auth string) {
-	slog.Info("pusher", "status", "initializing")
 	defer func() {
 		d.donepushch <- struct{}{}
 		slog.Info("pusher", "status", "terminated")
@@ -94,16 +93,15 @@ func (d *Docker) pushers(auth string) {
 
 	for image := range d.pushch {
 		if err := d.push(auth, image); err != nil {
-			slog.Error("imagePushing", "image", image.imageName, "error", err)
+			slog.Error("imagePushing", "image", image.name, "error", err)
 		}
 	}
 }
 
 func (d *Docker) pullers(auth string, targetRepositoriesMetadata map[string]repositoryMetadata) {
-	slog.Info("puller", "status", "initializing")
 	defer func() {
 		d.done <- struct{}{}
-		slog.Info("puller", "status", "terminated")
+		slog.Info("puller", "status", "exited")
 	}()
 
 	for metadata := range d.metadatach {
@@ -115,7 +113,7 @@ func (d *Docker) pullers(auth string, targetRepositoriesMetadata map[string]repo
 				tag,
 			)
 
-			docker, err := d.pull(auth, metadata.repositoryURI, tag)
+			docker, err := d.pull(auth, downloadImage{name: from})
 			if err != nil {
 				slog.Error("imagePulling", "repositoryName", metadata.repositoryName, "tag", tag, "error", err)
 				continue
@@ -123,6 +121,11 @@ func (d *Docker) pullers(auth string, targetRepositoriesMetadata map[string]repo
 
 			if err := docker.rename(from, to); err != nil {
 				slog.Error("renaming", "from", from, "to", to, "error", err)
+				continue
+			}
+
+			d.pushch <- uploadImage{
+				name: to,
 			}
 		}
 	}
@@ -141,24 +144,27 @@ func generateECRImageNames(tgRepoMetadata map[string]repositoryMetadata, reposit
 	return imageSource, imageTarget
 }
 
-func (d *Docker) pull(auth, repositoryName, tag string) (*Docker, error) {
-	img := fmt.Sprintf("%s:%s", repositoryName, tag)
+type downloadImage struct {
+	name string
+}
 
-	out, err := d.cli.ImagePull(d.ctx, img, image.PullOptions{
+func (d *Docker) pull(auth string, img downloadImage) (*Docker, error) {
+	out, err := d.cli.ImagePull(d.ctx, img.name, image.PullOptions{
 		RegistryAuth: auth,
 	})
+
 	if err != nil {
 		return &Docker{}, err
 	}
 
 	defer out.Close()
 	io.Copy(io.Discard, out)
-	slog.Info("imagePulling", "repositoryName", repositoryName, "tag", tag, "status", "pulled")
+	slog.Info("imagePulling", "image", img.name, "status", "pulled")
 	return d, err
 }
 
-func (d *Docker) push(auth string, new renamedImage) error {
-	out, err := d.cli.ImagePush(d.ctx, new.imageName, image.PushOptions{
+func (d *Docker) push(auth string, upload uploadImage) error {
+	out, err := d.cli.ImagePush(d.ctx, upload.name, image.PushOptions{
 		RegistryAuth: auth,
 	})
 	if err != nil {
@@ -167,12 +173,12 @@ func (d *Docker) push(auth string, new renamedImage) error {
 
 	defer out.Close()
 	io.Copy(io.Discard, out)
-	slog.Info("imagePushing", "image", new.imageName, "status", "pushed")
+	slog.Info("imagePushing", "image", upload.name, "status", "pushed")
 	return err
 }
 
-type renamedImage struct {
-	imageName string
+type uploadImage struct {
+	name string
 }
 
 func (d *Docker) rename(from, to string) error {
@@ -182,9 +188,6 @@ func (d *Docker) rename(from, to string) error {
 	}
 
 	slog.Info("renaming", "from", from, "to", to)
-	d.pushch <- renamedImage{
-		imageName: to,
-	}
 	return err
 }
 
@@ -238,7 +241,7 @@ func (d *Docker) waitPullers() {
 
 func (d *Docker) channels() {
 	d.metadatach = make(chan repositoryMetadata, len(d.data.repoList))
-	d.pushch = make(chan renamedImage, d.data.imagesCount)
+	d.pushch = make(chan uploadImage, d.data.imagesCount)
 }
 
 func (d *Docker) waitPushers() {
