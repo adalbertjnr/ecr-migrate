@@ -116,7 +116,7 @@ func generateConfigs(repositories []string, uriImages map[string]string) []ecrIm
 		ecrImageConfigs = append(ecrImageConfigs, ecrImageConfig{
 			repository:    repo,
 			repositoryURI: uri,
-			pullImage:     []string{"alpine:latest", "alpine:latest"},
+			pullImage:     []string{"alpine:3.20", "alpine:3.19"},
 			generateTags:  []string{"1.0", "1.1"},
 		})
 	}

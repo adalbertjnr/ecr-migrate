@@ -16,7 +16,7 @@ func main() {
 
 	aws := mustInitConfig(
 		withRegion(args.fromRegion),
-		withProfile(args.from),
+		withProfile(args.fromProfile),
 	)
 
 	svc := aws.stablishClientWith(

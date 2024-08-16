@@ -13,15 +13,11 @@ import (
 	"github.com/docker/docker/client"
 )
 
-const (
-	pullers = 3
-	pushers = 3
-)
-
 type Docker struct {
 	ctx        context.Context
 	cli        *client.Client
 	args       *Args
+	count      int
 	data       metadataList
 	pushch     chan uploadImage
 	metadatach chan repositoryMetadata
@@ -32,6 +28,7 @@ type Docker struct {
 func newDocker() *Docker {
 	return &Docker{
 		ctx:        context.Background(),
+		count:      0,
 		done:       make(chan struct{}),
 		donepushch: make(chan struct{}),
 	}
@@ -68,14 +65,14 @@ func (d *Docker) migrate() *Docker {
 	}
 	close(d.metadatach)
 
-	for i := 0; i < pullers; i++ {
+	for i := 0; i < d.args.pullers; i++ {
 		go func() {
 			d.pullers(auth, targetRepositoriesMetadata)
 		}()
 	}
 
 	go d.waitPullers()
-	for i := 0; i < pushers; i++ {
+	for i := 0; i < d.args.pushers; i++ {
 		go func() {
 			d.pushers(authTarget)
 		}()
@@ -208,7 +205,7 @@ func (d *Docker) authorize(auth authorization) string {
 func (d *Docker) createDestinationECRClient() *ECR {
 	aws := mustInitConfig(
 		withRegion(d.args.toRegion),
-		withProfile(d.args.to),
+		withProfile(d.args.toProfile),
 	)
 
 	svc := aws.stablishClientWith(
@@ -220,6 +217,7 @@ func (d *Docker) createDestinationECRClient() *ECR {
 
 func (d *Docker) prepare() (string, map[string]repositoryMetadata) {
 	ecrRegistry := d.createDestinationECRClient()
+
 	repositories := ecrRegistry.validate(d.data)
 	targetRepositoriesMetadata := ecrRegistry.getRepositoryMetadata(repositories)
 
@@ -233,7 +231,7 @@ func (d *Docker) prepare() (string, map[string]repositoryMetadata) {
 }
 
 func (d *Docker) waitPullers() {
-	for i := 0; i < pullers; i++ {
+	for i := 0; i < d.args.pullers; i++ {
 		<-d.done
 	}
 	close(d.pushch)
@@ -245,7 +243,7 @@ func (d *Docker) channels() {
 }
 
 func (d *Docker) waitPushers() {
-	for i := 0; i < pushers; i++ {
+	for i := 0; i < d.args.pushers; i++ {
 		<-d.donepushch
 	}
 }

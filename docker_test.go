@@ -6,6 +6,8 @@ import (
 
 type (
 	ecrConfigs struct {
+		pushers     int
+		pullers     int
 		fromRegion  string
 		toRegion    string
 		fromProfile string
@@ -26,6 +28,8 @@ func TestMigrate(t *testing.T) {
 		fromProfile: "default",
 		toRegion:    "us-east-1",
 		toProfile:   "HOME-LAB",
+		pushers:     3,
+		pullers:     3,
 	}
 
 	fileName, _, err := createTempYamlList()
@@ -53,10 +57,12 @@ func TestMigrate(t *testing.T) {
 	}
 
 	args := &Args{
-		fromRegion: ecrConfig.fromRegion,
-		toRegion:   ecrConfig.toRegion,
-		from:       ecrConfig.fromProfile,
-		to:         ecrConfig.toProfile,
+		fromRegion:  ecrConfig.fromRegion,
+		toRegion:    ecrConfig.toRegion,
+		fromProfile: ecrConfig.fromProfile,
+		toProfile:   ecrConfig.toProfile,
+		pushers:     ecrConfig.pushers,
+		pullers:     ecrConfig.pullers,
 	}
 
 	docker := newDocker().mustStartCli().withArgs(args)
